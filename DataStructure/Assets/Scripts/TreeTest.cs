@@ -48,7 +48,10 @@ public class TreeTest : MonoBehaviour
 
 
         //Pow(bst.root, Vector3.zero, bst.root.Height, Vector3.zero);
-        LevelOrder(bst.root);
+        //LevelOrder(bst.root);
+
+        int xIndex = 0;
+        InOrder(bst.root, 0, ref xIndex, Vector3.zero);
     }
 
     
@@ -156,18 +159,34 @@ public class TreeTest : MonoBehaviour
         }
     
     }
-    private void InOrder(TreeNode<int, int> node,int depth, ref int xIndex)
+    private void InOrder(TreeNode<int, int> node,int depth, ref int xIndex, Vector3 parentPos)
     {
         if (node == null) return;
 
         // TODO: 왼쪽 서브트리 먼저 방문 (depth + 1)
-        InOrder(node.Left, depth + 1, ref xIndex);
+        InOrder(node.Left, depth + 1, ref xIndex, Vector3.zero);
 
         // TODO: 자신의 좌표 기록 — x는 xIndex 기반, y는 depth 기반
         nodePositions[node] = new Vector3(xIndex * horizontalSpacing, -depth * verticalSpacing, 0f);
+        Vector3 myPos = nodePositions[node];
         xIndex++;
 
+        GameObject go = Instantiate(Node, myPos, Quaternion.identity);
+        go.GetComponentInChildren<TextMeshPro>().text = $"{node.Value}";
+
+        if (depth > 0) // root 제외
+        {
+            LineRenderer lr = go.GetComponent<LineRenderer>();
+            if (lr != null)
+            {
+                lr.positionCount = 2;
+                lr.SetPosition(0, parentPos); // 시작점: 부모 위치
+                lr.SetPosition(1, myPos);  // 끝점: 내 위치
+            }
+        }
+
+
         // TODO: 오른쪽 서브트리 방문 (depth + 1)
-        InOrder(node.Right, depth + 1, ref xIndex);
+        InOrder(node.Right, depth + 1, ref xIndex, myPos);
     }
 }
