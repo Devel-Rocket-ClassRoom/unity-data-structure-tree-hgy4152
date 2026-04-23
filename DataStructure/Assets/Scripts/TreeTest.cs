@@ -5,6 +5,7 @@ using UnityEditor.Experimental.GraphView;
 using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityEngine.UIElements;
+using static UnityEditor.PlayerSettings;
 using static UnityEngine.Rendering.DebugUI;
 
 public class TreeTest : MonoBehaviour
@@ -17,7 +18,10 @@ public class TreeTest : MonoBehaviour
         InOrder
     };
     public int nodeCount = 5;
+
     public Batch currentSetting = Batch.Pow;
+
+    
     public int minValue = 0;
     public int maxValue = 100;
 
@@ -29,6 +33,9 @@ public class TreeTest : MonoBehaviour
 
     private BinarySearchTree<int, int> bst = new BinarySearchTree<int, int>();
     private int height;
+
+    private readonly Dictionary<object, GameObject> nodeObjects = new();
+
 
     private void Start()
     {
@@ -46,15 +53,65 @@ public class TreeTest : MonoBehaviour
 
         height = bst.root.Height;
 
-
-        //Pow(bst.root, Vector3.zero, bst.root.Height, Vector3.zero);
-        //LevelOrder(bst.root);
-
-        int xIndex = 0;
-        InOrder(bst.root, 0, ref xIndex, Vector3.zero);
+        CreateNode(bst.root);
+        Pow(bst.root, Vector3.zero, bst.root.Height, Vector3.zero);
     }
 
-    
+    private void OnValidate()
+    {
+        if (!Application.isPlaying || bst.root == null) return;
+
+        int xIndex = 0;
+        nodePositions.Clear();
+
+        switch (currentSetting)
+        {
+            case Batch.Pow:
+                Pow(bst.root, Vector3.zero, bst.root.Height, Vector3.zero);
+                break;
+            case Batch.LevelOrder:
+                LevelOrder(bst.root);
+                break;
+            case Batch.InOrder:
+                InOrder(bst.root, 0, ref xIndex, new Vector3(-1000, -1000, 0));
+                break;
+        }
+    }
+
+    private void CreateNode(TreeNode<int, int> node)
+    {
+        if (node == null) return;
+
+        if (!nodeObjects.ContainsKey(node))
+        {
+            GameObject go = Instantiate(Node, Vector3.zero, Quaternion.identity, transform);
+            go.GetComponentInChildren<TextMeshPro>().text = $"{node.Value}";
+            nodeObjects[node] = go;
+        }
+
+        CreateNode(node.Left);
+        CreateNode(node.Right);
+    }
+
+    private void SetNode(TreeNode<int, int> node, Vector3 position, Vector3 parentPos)
+    {
+
+        if (nodeObjects.TryGetValue(node, out GameObject go))
+        {
+            go.transform.position = position;
+            nodePositions[node] = position;
+
+
+            LineRenderer lr = nodeObjects[node].GetComponent<LineRenderer>();
+            if (lr != null)
+            {
+                lr.positionCount = 2;
+                lr.SetPosition(0, parentPos); // 시작점: 부모 위치
+                lr.SetPosition(1, position);  // 끝점: 내 위치
+            }
+        }
+    }
+
 
 
 
@@ -64,21 +121,17 @@ public class TreeTest : MonoBehaviour
         if (node == null) return;
 
         nodePositions[node] = position;
-        GameObject go = Instantiate(Node, position, Quaternion.identity);
-        go.GetComponentInChildren<TextMeshPro>().text = $"{node.Value}";
 
-        if (position != Vector3.zero) // root 제외
+        if (position != Vector3.zero)
         {
-            LineRenderer lr = go.GetComponent<LineRenderer>();
-            if (lr != null)
-            {
-                lr.positionCount = 2;
-                lr.SetPosition(0, parentPos); // 시작점: 부모 위치
-                lr.SetPosition(1, position);  // 끝점: 내 위치
-            }
+            SetNode(node, position, parentPos);
+        }
+        else
+        {
+            SetNode(node, position, position);
         }
         // TODO: 이번 레벨에서 자식을 좌우로 얼마나 벌릴지 계산
-        float offset = horizontalSpacing * 0.5f * Mathf.Pow(2, height - 2);
+        float offset = horizontalSpacing * 0.5f * Mathf.Pow(2, height - 4);
 
         Vector3 childBase = position + Vector3.down * verticalSpacing;
 
@@ -129,36 +182,36 @@ public class TreeTest : MonoBehaviour
         }
 
 
+        // 라인 그리기
         var renderQueue = new Queue<(TreeNode<int, int> node, Vector3? parentPos)>();
         renderQueue.Enqueue((root, null));
 
         while (renderQueue.Count > 0)
         {
             var (node, pPos) = renderQueue.Dequeue();
-            Vector3 myPos = nodePositions[node];
-
-            // 노드 생성
-            GameObject go = Instantiate(Node, myPos, Quaternion.identity);
-            go.GetComponentInChildren<TextMeshPro>().text = $"{node.Value}";
+            Vector3 position = nodePositions[node];
 
             // 부모 위치 정보가 있다면 선 그리기
             if (pPos.HasValue)
             {
-                LineRenderer lr = go.GetComponent<LineRenderer>();
-                if (lr != null)
-                {
-                    lr.positionCount = 2;
-                    lr.SetPosition(0, pPos.Value); // 전달받은 부모 위치
-                    lr.SetPosition(1, myPos);      // 내 위치
-                }
+                SetNode(node, position, pPos.Value);     
+            }
+            else
+            {
+                // 없으면 root 이니 제자리
+                SetNode(node, position, position);
             }
 
-            // 자식들을 큐에 넣을 때 '나의 위치'를 부모 위치로서 전달
-            if (node.Left != null) renderQueue.Enqueue((node.Left, myPos));
-            if (node.Right != null) renderQueue.Enqueue((node.Right, myPos));
+            
+            if (node.Left != null) 
+                renderQueue.Enqueue((node.Left, position));
+
+            if (node.Right != null) 
+                renderQueue.Enqueue((node.Right, position));
         }
     
     }
+
     private void InOrder(TreeNode<int, int> node,int depth, ref int xIndex, Vector3 parentPos)
     {
         if (node == null) return;
@@ -168,25 +221,25 @@ public class TreeTest : MonoBehaviour
 
         // TODO: 자신의 좌표 기록 — x는 xIndex 기반, y는 depth 기반
         nodePositions[node] = new Vector3(xIndex * horizontalSpacing, -depth * verticalSpacing, 0f);
-        Vector3 myPos = nodePositions[node];
+        Vector3 position = nodePositions[node];
         xIndex++;
 
-        GameObject go = Instantiate(Node, myPos, Quaternion.identity);
-        go.GetComponentInChildren<TextMeshPro>().text = $"{node.Value}";
 
         if (depth > 0) // root 제외
         {
-            LineRenderer lr = go.GetComponent<LineRenderer>();
-            if (lr != null)
-            {
-                lr.positionCount = 2;
-                lr.SetPosition(0, parentPos); // 시작점: 부모 위치
-                lr.SetPosition(1, myPos);  // 끝점: 내 위치
-            }
+            SetNode(node, position, parentPos);
+        }
+        else
+        {
+            // root 그리기. 선은 자기자신과 연결해서 안나오게 처리
+            SetNode(node, position, position);
         }
 
-
+        if (node.Left != null && nodePositions.ContainsKey(node.Left))
+        {
+            SetNode(node.Left, nodePositions[node.Left], position);
+        }
         // TODO: 오른쪽 서브트리 방문 (depth + 1)
-        InOrder(node.Right, depth + 1, ref xIndex, myPos);
+        InOrder(node.Right, depth + 1, ref xIndex, position);
     }
 }
