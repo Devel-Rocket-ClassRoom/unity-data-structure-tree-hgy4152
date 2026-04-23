@@ -15,7 +15,9 @@ public class TreeTest : MonoBehaviour
         None,
         Pow,
         LevelOrder,
-        InOrder
+        InOrder,
+        PriorityQueue
+
     };
     public int nodeCount = 5;
 
@@ -32,6 +34,9 @@ public class TreeTest : MonoBehaviour
     public float verticalSpacing = 2.0f;
 
     private BinarySearchTree<int, int> bst = new BinarySearchTree<int, int>();
+    private PriorityQueue<TreeNode<int, int>, int> priorityQueue = new();
+
+
     private int height;
 
     private readonly Dictionary<object, GameObject> nodeObjects = new();
@@ -75,6 +80,9 @@ public class TreeTest : MonoBehaviour
             case Batch.InOrder:
                 InOrder(bst.root, 0, ref xIndex, new Vector3(-1000, -1000, 0));
                 break;
+            case Batch.PriorityQueue:
+                PriorityQueue(bst.root);
+                break;
         }
     }
 
@@ -111,8 +119,6 @@ public class TreeTest : MonoBehaviour
             }
         }
     }
-
-
 
 
     private void Pow(TreeNode<int, int> node, Vector3 position, int height, Vector3 parentPos)
@@ -241,5 +247,71 @@ public class TreeTest : MonoBehaviour
         }
         // TODO: 오른쪽 서브트리 방문 (depth + 1)
         InOrder(node.Right, depth + 1, ref xIndex, position);
+    }
+
+
+
+
+    private void PriorityQueue(TreeNode<int, int> root)
+    {
+        if (root == null) return;
+
+        priorityQueue.Clear();
+
+        AddQueue(root);
+
+        for (int i = 0; i < priorityQueue.values.Count; i++)
+        {
+            var currentNode = priorityQueue.values[i].Element;
+            int depth = Mathf.FloorToInt(Mathf.Log(i + 1, 2));
+
+            Vector3 postition;
+
+            if (i == 0) // root
+            {
+                postition = Vector3.zero;
+            }
+            else
+            {
+                // 부모 위치 기준 정렬
+                int parentIndex = (i - 1) / 2;
+                Vector3 parentPos = nodePositions[priorityQueue.values[parentIndex].Element];
+
+                // 앞에 값 층에서 벌어지는 정도
+                // 뒤에 값 높이 따라 벌어지는 정도
+                float offset = horizontalSpacing * Mathf.Pow(0.5f, depth - 2);  
+
+                // 홀짝으로 왼오 구분
+                if (i % 2 != 0)
+                    postition = new Vector3(parentPos.x - offset, -depth * verticalSpacing, 0); // 왼쪽
+                else
+                    postition = new Vector3(parentPos.x + offset, -depth * verticalSpacing, 0); // 오른쪽
+            }
+
+            // 위치 저장 및 노드 설정
+            nodePositions[currentNode] = postition;
+
+            // 선 그리기 (i > 0 일 때 부모와 연결)
+            if (i > 0)
+            {
+                int parentIndex = (i - 1) / 2;
+                SetNode(currentNode, postition, nodePositions[priorityQueue.values[parentIndex].Element]);
+            }
+            else
+            {
+                // root
+                SetNode(currentNode, postition, postition);
+            }
+        }
+    }
+
+    private void AddQueue(TreeNode<int, int> node)
+    {
+        if (node == null) return;
+
+        priorityQueue.Enqueue(node, node.Value);
+
+        AddQueue(node.Left);
+        AddQueue(node.Right);
     }
 }
